@@ -46,6 +46,29 @@ unsigned opencl_used [] = {
 
 ///////////////////////////// Version séquentielle simple
 
+int verify_life(unsigned i, unsigned j){
+  int alive = 0;
+  int start_x = i-1 > 0 ? i-1 : 0;
+  int start_y = j-1 > 0 ? j-1 : 0;
+
+  int end_x = start_x + 3 >= DIM ? DIM-1 : start_x + 3;
+  int end_y = start_y + 3 >= DIM ? DIM-1 : start_y + 3;
+
+  for(int x = start_x;x < end_x;x++){
+    for(int y = start_y;y < end_y;y++){
+      if(cur_img(x, y)){
+        alive+=1;
+      }
+    }
+  }
+
+  if(cur_img(i, j)){
+    return alive == 2 || alive == 3;
+  }else{
+    return alive == 3;
+  }
+}
+
 
 unsigned compute_v0 (unsigned nb_iter)
 {
@@ -53,9 +76,7 @@ unsigned compute_v0 (unsigned nb_iter)
   for (unsigned it = 1; it <= nb_iter; it ++) {
     for (int i = 0; i < DIM; i++)
       for (int j = 0; j < DIM; j++)
-	next_img (i, j) = cur_img (j, i);
-    
-    swap_images ();
+	      next_img (i, j) = verify_life(i, j);
   }
   // retourne le nombre d'étapes nécessaires à la
   // stabilisation du calcul ou bien 0 si le calcul n'est pas
