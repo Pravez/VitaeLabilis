@@ -99,16 +99,18 @@ void first_touch_v1 ()
 {
   int i,j ;
 
-#pragma omp parallel for
-  for(i=0; i<DIM ; i++) {
-    for(j=0; j < DIM ; j += 512)
+#pragma omp parallel for collapse(2)
+  for(i=1; i<DIM-1 ; i++) {
+    for(j=1; j < DIM-1 ; j ++)
       next_img (i, j) = verify_life (i, j);
-  }
+  }  
 }
 
 // Renvoie le nombre d'itérations effectuées avant stabilisation, ou 0
 unsigned compute_v1(unsigned nb_iter)
 {
+  first_touch_v1();
+  swap_images();
   return 0;
 }
 
