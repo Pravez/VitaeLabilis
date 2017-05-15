@@ -6,6 +6,10 @@
 
 #include <stdbool.h>
 
+#define RED 0xFF0000FF
+#define GREEN 0x00FF00FF
+#define BLUE 0x0000FFFF
+
 unsigned version = 0;
 
 void first_touch_v1 (void);
@@ -48,24 +52,24 @@ unsigned opencl_used [] = {
 
 int verify_life(unsigned i, unsigned j){
   int alive = 0;
-  int start_x = i == 0 ? 0 : i-1;
-  int start_y = j == 0 ? 0 : j-1;
+  int start_x = i == 1 ? 0 : i-1;
+  int start_y = j == 1 ? 0 : j-1;
 
-  int end_x = start_x + 3 >= DIM ? DIM-1 : start_x + 3;
-  int end_y = start_y + 3 >= DIM ? DIM-1 : start_y + 3;
+  int end_x = start_x + 3 >= DIM-1 ? DIM-1 : start_x + 3;
+  int end_y = start_y + 3 >= DIM-1 ? DIM-1 : start_y + 3;
 
   for(int x = start_x;x < end_x;x++){
     for(int y = start_y;y < end_y;y++){
-      if(cur_img(x, y)){
+      if((x != i || y != j) && cur_img(x, y) != 0){
         alive+=1;
       }
     }
   }
 
-  if(cur_img(i, j)){
-    return alive == 2 || alive == 3;
+  if(cur_img(i, j) != 0){
+    return (alive == 2 || alive == 3) ? BLUE : 0;
   }else{
-    return alive == 3;
+    return (alive == 3) ? GREEN : 0;
   }
 }
 
@@ -74,9 +78,13 @@ unsigned compute_v0 (unsigned nb_iter)
 {
 
   for (unsigned it = 1; it <= nb_iter; it ++) {
-    for (int i = 0; i < DIM; i++)
-      for (int j = 0; j < DIM; j++)
+    for (int i = 1; i < DIM-1; i++){
+      for (int j = 1; j < DIM-1; j++){
 	      next_img (i, j) = verify_life(i, j);
+      }
+    }
+
+    swap_images();
   }
   // retourne le nombre d'étapes nécessaires à la
   // stabilisation du calcul ou bien 0 si le calcul n'est pas
