@@ -48,8 +48,8 @@ unsigned opencl_used [] = {
 
 int verify_life(unsigned i, unsigned j){
   int alive = 0;
-  int start_x = i-1 > 0 ? i-1 : 0;
-  int start_y = j-1 > 0 ? j-1 : 0;
+  int start_x = i == 0 ? 0 : i-1;
+  int start_y = j == 0 ? 0 : j-1;
 
   int end_x = start_x + 3 >= DIM ? DIM-1 : start_x + 3;
   int end_y = start_y + 3 >= DIM ? DIM-1 : start_y + 3;
@@ -94,7 +94,7 @@ void first_touch_v1 ()
 #pragma omp parallel for
   for(i=0; i<DIM ; i++) {
     for(j=0; j < DIM ; j += 512)
-      next_img (i, j) = cur_img (i, j) = 0 ;
+      next_img (i, j) = verify_life (i, j);
   }
 }
 
