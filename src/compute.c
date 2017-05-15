@@ -184,7 +184,7 @@ unsigned compute_v2(unsigned nb_iter){
 
 
 ///////////////////////////// Version OpenMP optimisée
-
+//réduire le nombre de tuiles à calculer : calculer ou non les tuiles adjacentes suivant les calculs aux bords
 void first_touch_v2 ()
 {
 
