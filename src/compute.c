@@ -19,6 +19,13 @@ unsigned compute_v0 (unsigned nb_iter);
 unsigned compute_v1 (unsigned nb_iter);
 unsigned compute_v2 (unsigned nb_iter);
 unsigned compute_v3 (unsigned nb_iter);
+unsigned compute_v4 (unsigned nb_iter);
+unsigned compute_v5 (unsigned nb_iter);
+unsigned compute_v6 (unsigned nb_iter);
+unsigned compute_v7 (unsigned nb_iter);
+unsigned compute_v8 (unsigned nb_iter);
+
+
 
 void_func_t first_touch [] = {
   NULL,
@@ -28,16 +35,21 @@ void_func_t first_touch [] = {
 };
 
 int_func_t compute [] = {
-  compute_v0,
-  compute_v1,
-  compute_v2,
-  compute_v3,
+  compute_v0, //Version sequentielle
+  compute_v1, //Version OpenMP for de base
+  compute_v2, //Version OpenMP for tuilee
+  compute_v3, //Version OpenMP optimisee
+  compute_v4,
+  compute_v5,
+  compute_v6,
+  compute_v7,
+  compute_v8,
 };
 
 char *version_name [] = {
   "Séquentielle",
-  "OpenMP",
-  "OpenMP zone",
+  "OpenMP For basique",
+  "OpenMP For Tuile",
   "OpenCL",
 };
 
@@ -47,6 +59,10 @@ unsigned opencl_used [] = {
   0,
   1,
 };
+
+unsigned tranche;
+
+#define GRAIN 32
 
 ///////////////////////////// Version séquentielle simple
 
@@ -95,6 +111,7 @@ unsigned compute_v0 (unsigned nb_iter)
 
 ///////////////////////////// Version OpenMP de base
 
+//Version OpenMP basique
 void first_touch_v1 ()
 {
   int i,j ;
@@ -114,6 +131,56 @@ unsigned compute_v1(unsigned nb_iter)
   return 0;
 }
 
+/////////////////////////////Version OpenMP tuilee
+int pixel_handler (int x, int y)
+{
+  int alive = 0;
+
+  for (int i = x-1; i <= x+1; i++){
+    for (int j = y-1; j <= y+1; j++){
+      if ((i != x || j != y) && cur_img (i,j) != 0) {
+        alive += 1;
+      }
+    }
+  }
+
+  if(cur_img(x, y) != 0)
+    return (alive == 2 || alive == 3) ? BLUE : 0;
+  else
+    return (alive == 3) ? GREEN : 0;
+}
+
+void tile_handler (int i, int j)
+{
+  int i_d = (i == 1) ? 1 : i * tranche;
+  int j_d = (j == 1) ? 1 : j * tranche;
+  int i_f = (i == GRAIN-1) ? DIM-1 : (i+1) * tranche;
+  int j_f = (j == GRAIN-1) ? DIM-1 : (j+1) * tranche;
+  
+  for(int x = i_d;x < i_f;++x){
+    for(int y = j_d;y < j_f;++y){
+      next_img(x, y) = pixel_handler(x, y);
+    }
+  }
+}
+
+int launch_tile_handlers (void)
+{    
+  tranche = DIM / GRAIN;
+
+  #pragma omp parallel for collapse(2) schedule(static)
+  for (int i=1; i < GRAIN; i++)
+    for (int j=1; j < GRAIN; j++)
+      tile_handler (i, j);
+
+  return 0;
+}
+
+unsigned compute_v2(unsigned nb_iter){
+  launch_tile_handlers();
+  swap_images();
+  return 0;
+}
 
 
 ///////////////////////////// Version OpenMP optimisée
@@ -124,7 +191,7 @@ void first_touch_v2 ()
 }
 
 // Renvoie le nombre d'itérations effectuées avant stabilisation, ou 0
-unsigned compute_v2(unsigned nb_iter)
+unsigned compute_v3(unsigned nb_iter)
 {
   return 0; // on ne s'arrête jamais
 }
@@ -133,7 +200,24 @@ unsigned compute_v2(unsigned nb_iter)
 ///////////////////////////// Version OpenCL
 
 // Renvoie le nombre d'itérations effectuées avant stabilisation, ou 0
-unsigned compute_v3 (unsigned nb_iter)
+unsigned compute_v4 (unsigned nb_iter)
 {
   return ocl_compute (nb_iter);
+}
+
+unsigned compute_v5(unsigned nb_iter)
+{
+  return 0; // on ne s'arrête jamais
+}
+unsigned compute_v6(unsigned nb_iter)
+{
+  return 0; // on ne s'arrête jamais
+}
+unsigned compute_v7(unsigned nb_iter)
+{
+  return 0; // on ne s'arrête jamais
+}
+unsigned compute_v8(unsigned nb_iter)
+{
+  return 0; // on ne s'arrête jamais
 }
