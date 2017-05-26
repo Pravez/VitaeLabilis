@@ -15,6 +15,8 @@ unsigned version = 0;
 void first_touch_v1 (void);
 void first_touch_v2 (void);
 
+void init_v3(void);
+
 unsigned compute_v0 (unsigned nb_iter);
 unsigned compute_v1 (unsigned nb_iter);
 unsigned compute_v2 (unsigned nb_iter);
@@ -34,13 +36,25 @@ void_func_t first_touch [] = {
     NULL,
 };
 
+void_func_t init[] = {
+    NULL,
+    NULL,
+    NULL,
+    init_v3,
+    NULL,
+    init_v3,
+    NULL,
+    NULL,
+    NULL
+};
+
 int_func_t compute [] = {
     compute_v0, //Version sequentielle
     compute_v1, //Version OpenMP for de base
     compute_v2, //Version OpenMP for tuilee
     compute_v3, //Version OpenMP optimisee
-    compute_v4,
-    compute_v5,
+    compute_v4, //Version OpenMP task
+    compute_v5, //Version OpenMP task optimisee
     compute_v6,
     compute_v7,
     compute_v8,
@@ -195,34 +209,12 @@ unsigned compute_v2(unsigned nb_iter) {
 ///////////////////////////// Version OpenMP optimisée
 //réduire le nombre de tuiles à calculer : calculer ou non les tuiles adjacentes suivant les calculs aux bords
 // Renvoie le nombre d'itérations effectuées avant stabilisation, ou 0
-int pixel_handler_optim (int x, int y)
-{
-    int alive = 0;
-    int returned = 0;
-
-    for (int i = x-1; i <= x+1; i++) {
-        for (int j = y-1; j <= y+1; j++) {
-            if ((i != x || j != y) && cur_img (i,j) != 0) {
-                alive += 1;
-            }
-        }
-    }
-
-    if(cur_img(x, y) != 0) {
-        returned = (alive == 2 || alive == 3) ? BLUE : 0;
-    } else {
-        returned = (alive == 3) ? GREEN : 0;
-    }
-
-    return returned;
-}
-
 void tile_handler_optim (int i, int j)
 {
     //If it changed
     if(tiles_tracker[i][j] == true) {
         tiles_tracker[i][j] = false;
-        
+
         int i_d = (i == 1) ? 1 : i * tranche;
         int j_d = (j == 1) ? 1 : j * tranche;
         int i_f = (i == GRAIN-1) ? DIM-1 : (i+1) * tranche;
@@ -232,8 +224,8 @@ void tile_handler_optim (int i, int j)
 
         for(int x = i_d; x < i_f; ++x) {
             for(int y = j_d; y < j_f; ++y) {
-                value = pixel_handler_optim(x, y);
-                if(cur_img(x, y) != value && !tiles_tracker[i][j]){
+                value = pixel_handler(x, y);
+                if(cur_img(x, y) != value) {
                     tiles_tracker[i][j] = true;
                     tiles_tracker[i+1][j] = true;
                     tiles_tracker[i][j+1] = true;
@@ -248,7 +240,15 @@ int launch_tile_handlers_optim (void)
 {
     tranche = DIM / GRAIN;
 
-    //First we keep a trace of eventual changing of other tiles
+    #pragma omp parallel for collapse(2) schedule(static)
+    for (int i=1; i < GRAIN; i++)
+        for (int j=1; j < GRAIN; j++)
+            tile_handler_optim (i, j);
+
+    return 0;
+}
+
+void init_v3() {
     tiles_tracker = malloc(sizeof(bool*)*(GRAIN+2));
     for(int i = 0; i < GRAIN+1; i++) {
         tiles_tracker[i] = malloc(sizeof(bool)*(GRAIN+2));
@@ -257,18 +257,11 @@ int launch_tile_handlers_optim (void)
         }
     }
 
-    #pragma omp parallel for collapse(2) schedule(static)
-    for (int i=1; i < GRAIN; i++)
-        for (int j=1; j < GRAIN; j++)
-            tile_handler_optim (i, j);
-
     //We free allocated memory
-    for(int i = 0; i < GRAIN; i++) {
+    /*for(int i = 0; i < GRAIN; i++) {
         free(tiles_tracker[i]);
     }
-    free(tiles_tracker);
-
-    return 0;
+    free(tiles_tracker);*/
 }
 
 unsigned compute_v3(unsigned nb_iter)
@@ -279,15 +272,80 @@ unsigned compute_v3(unsigned nb_iter)
 }
 
 
-//////////////////////////////////////OpenMP Task optimisée
+//////////////////////////////////////OpenMP Task tuilee
 // Renvoie le nombre d'itérations effectuées avant stabilisation, ou 0
+
+int launch_tile_handlers_task (void)
+{
+    tranche = DIM / GRAIN;
+
+    #pragma omp parallel
+    for (int i=1; i < GRAIN; i++)
+        for (int j=1; j < GRAIN; j++)
+            #pragma omp single nowait
+            #pragma omp task
+            tile_handler (i, j);
+
+    return 0;
+}
+
 unsigned compute_v4 (unsigned nb_iter)
 {
-    return ocl_compute (nb_iter);
+    launch_tile_handlers_task();
+    swap_images();
+    return 0;
+}
+
+
+//////////////////////////////////////OpenMP Task optimisee
+void tile_handler_optim_task (int i, int j)
+{
+    tiles_tracker[i][j] = false;
+
+    int i_d = (i == 1) ? 1 : i * tranche;
+    int j_d = (j == 1) ? 1 : j * tranche;
+    int i_f = (i == GRAIN-1) ? DIM-1 : (i+1) * tranche;
+    int j_f = (j == GRAIN-1) ? DIM-1 : (j+1) * tranche;
+
+    int value = 0;
+
+    for(int x = i_d; x < i_f; ++x) {
+        for(int y = j_d; y < j_f; ++y) {
+            value = pixel_handler(x, y);
+            if(cur_img(x, y) != value) {
+                tiles_tracker[i][j] = true;
+                tiles_tracker[i+1][j] = true;
+                tiles_tracker[i][j+1] = true;
+            }
+            next_img(x, y) = value;
+        }
+    }
+}
+
+int launch_tile_handlers_optim_task (void)
+{
+    tranche = DIM / GRAIN;
+
+    #pragma omp parallel
+    for (int i=1; i < GRAIN; i++) {
+        for (int j=1; j < GRAIN; j++) {
+            if(tiles_tracker[i][j] == true) {
+                #pragma omp single nowait
+                #pragma omp task
+                {
+                    tile_handler_optim_task (i, j);
+                }
+            }
+        }
+    }
+
+    return 0;
 }
 
 unsigned compute_v5(unsigned nb_iter)
 {
+    launch_tile_handlers_optim_task();
+    swap_images();
     return 0; // on ne s'arrête jamais
 }
 
@@ -299,9 +357,9 @@ unsigned compute_v6(unsigned nb_iter)
 }
 unsigned compute_v7(unsigned nb_iter)
 {
-    return 0; // on ne s'arrête jamais
+    return ocl_compute (nb_iter);
 }
 unsigned compute_v8(unsigned nb_iter)
 {
-    return 0; // on ne s'arrête jamais
+    return ocl_compute (nb_iter);
 }
