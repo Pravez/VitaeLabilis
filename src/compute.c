@@ -69,7 +69,7 @@ unsigned opencl_used [] = {
 };
 
 unsigned tranche;
-unsigned int **tiles_tracker;
+bool **tiles_tracker;
 
 #define GRAIN 32
 
@@ -217,14 +217,12 @@ int pixel_handler_optim (int x, int y)
     return returned;
 }
 
-int check_changed(int i, int j) {
-    return ;
-}
-
 void tile_handler_optim (int i, int j)
 {
     //If it changed
-    if(tiles_tracker[i-1][j] || tiles_tracker[i][j-1] || tiles_tracker[i+1][j] || tiles_tracker[i][j+1]) {
+    if(tiles_tracker[i][j] == true) {
+        tiles_tracker[i][j] = false;
+        
         int i_d = (i == 1) ? 1 : i * tranche;
         int j_d = (j == 1) ? 1 : j * tranche;
         int i_f = (i == GRAIN-1) ? DIM-1 : (i+1) * tranche;
@@ -235,8 +233,11 @@ void tile_handler_optim (int i, int j)
         for(int x = i_d; x < i_f; ++x) {
             for(int y = j_d; y < j_f; ++y) {
                 value = pixel_handler_optim(x, y);
-                if(cur_img(x, y) != value && !tiles_tracker[i][j])
-                    tiles_tracker[i][j] = 1;
+                if(cur_img(x, y) != value && !tiles_tracker[i][j]){
+                    tiles_tracker[i][j] = true;
+                    tiles_tracker[i+1][j] = true;
+                    tiles_tracker[i][j+1] = true;
+                }
                 next_img(x, y) = value;
             }
         }
@@ -248,11 +249,11 @@ int launch_tile_handlers_optim (void)
     tranche = DIM / GRAIN;
 
     //First we keep a trace of eventual changing of other tiles
-    tiles_tracker = malloc(sizeof(unsigned int*)*(GRAIN+2));
+    tiles_tracker = malloc(sizeof(bool*)*(GRAIN+2));
     for(int i = 0; i < GRAIN+1; i++) {
-        tiles_tracker[i] = malloc(sizeof(unsigned int)*(GRAIN+2));
+        tiles_tracker[i] = malloc(sizeof(bool)*(GRAIN+2));
         for(int j = 0; j < GRAIN; j++) {
-            tiles_tracker[i][j] = i == 0 || j == 0 || i == GRAIN+1 || j == GRAIN+1 ? 1 : 0;
+            tiles_tracker[i][j] = true;
         }
     }
 
@@ -278,8 +279,7 @@ unsigned compute_v3(unsigned nb_iter)
 }
 
 
-///////////////////////////// Version OpenCL
-
+//////////////////////////////////////OpenMP Task optimisée
 // Renvoie le nombre d'itérations effectuées avant stabilisation, ou 0
 unsigned compute_v4 (unsigned nb_iter)
 {
@@ -290,6 +290,9 @@ unsigned compute_v5(unsigned nb_iter)
 {
     return 0; // on ne s'arrête jamais
 }
+
+///////////////////////////// Version OpenCL
+
 unsigned compute_v6(unsigned nb_iter)
 {
     return 0; // on ne s'arrête jamais
