@@ -278,6 +278,7 @@ unsigned compute_v3(unsigned nb_iter)
 
 int launch_tile_handlers_task (void)
 {
+    tranche = (DIM*1.0) / GRAIN;
 
     #pragma omp parallel
     for (int i=1; i < GRAIN; i++) {
