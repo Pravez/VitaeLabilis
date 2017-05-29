@@ -155,22 +155,24 @@ unsigned compute_v1(unsigned nb_iter)
 }
 
 /////////////////////////////Version OpenMP tuilee
-int pixel_handler (int x, int y)
+bool pixel_handler (int x, int y)
 {
     int alive = 0;
 
     for (int i = x-1; i <= x+1; i++) {
         for (int j = y-1; j <= y+1; j++) {
-            if ((i != x || j != y) && cur_img (i,j) != 0) {
+            if ((i != x || j != y) && cur_img (i,j)) {
                 alive += 1;
             }
         }
     }
 
-    if(cur_img(x, y) != 0)
-        return (alive == 2 || alive == 3) ? BLUE : 0;
+    if(cur_img(x, y))
+        next_img(x, y) = (alive == 2 || alive == 3) ? BLUE : 0;
     else
-        return (alive == 3) ? GREEN : 0;
+        next_img(x, y) = (alive == 3) ? GREEN : 0;
+
+    return  (0x000000FF & next_img(x, y)) != (0x000000FF & cur_img(x, y));
 }
 
 void tile_handler (int i, int j)
@@ -182,7 +184,7 @@ void tile_handler (int i, int j)
 
     for(int x = i_d; x < i_f; ++x) {
         for(int y = j_d; y < j_f; ++y) {
-            next_img(x, y) = pixel_handler(x, y);
+            pixel_handler(x, y);
         }
     }
 }
@@ -220,17 +222,15 @@ void tile_handler_optim (int i, int j)
         int i_f = (i == GRAIN-1) ? DIM-1 : (i+1) * tranche;
         int j_f = (j == GRAIN-1) ? DIM-1 : (j+1) * tranche;
 
-        int value = 0;
-
         for(int x = i_d; x < i_f; ++x) {
             for(int y = j_d; y < j_f; ++y) {
-                value = pixel_handler(x, y);
-                if(cur_img(x, y) != value) {
+                if(pixel_handler(x, y)) {
                     tiles_tracker[i][j] = true;
                     tiles_tracker[i+1][j] = true;
                     tiles_tracker[i][j+1] = true;
+                    tiles_tracker[i-1][j] = true;
+                    tiles_tracker[i][j-1] = true;
                 }
-                next_img(x, y) = value;
             }
         }
     }
@@ -249,6 +249,7 @@ int launch_tile_handlers_optim (void)
 }
 
 void init_v3() {
+    tranche = (DIM*1.0) / GRAIN;
     tiles_tracker = malloc(sizeof(bool*)*(GRAIN+2));
     for(int i = 0; i < GRAIN+1; i++) {
         tiles_tracker[i] = malloc(sizeof(bool)*(GRAIN+2));
@@ -277,14 +278,17 @@ unsigned compute_v3(unsigned nb_iter)
 
 int launch_tile_handlers_task (void)
 {
-    tranche = DIM / GRAIN;
 
     #pragma omp parallel
-    for (int i=1; i < GRAIN; i++)
-        for (int j=1; j < GRAIN; j++)
+    for (int i=1; i < GRAIN; i++) {
+        for (int j=1; j < GRAIN; j++) {
             #pragma omp single nowait
             #pragma omp task
-            tile_handler (i, j);
+            {
+                tile_handler (i, j);
+            }
+        }
+    }
 
     return 0;
 }
@@ -300,24 +304,26 @@ unsigned compute_v4 (unsigned nb_iter)
 //////////////////////////////////////OpenMP Task optimisee
 void tile_handler_optim_task (int i, int j)
 {
-    tiles_tracker[i][j] = false;
+    if(tiles_tracker[i][j] == true) {
+        #pragma omp single nowait
+        #pragma omp task
+        {
+            tiles_tracker[i][j] = false;
 
-    int i_d = (i == 1) ? 1 : i * tranche;
-    int j_d = (j == 1) ? 1 : j * tranche;
-    int i_f = (i == GRAIN-1) ? DIM-1 : (i+1) * tranche;
-    int j_f = (j == GRAIN-1) ? DIM-1 : (j+1) * tranche;
+            int i_d = (i == 1) ? 1 : i * tranche;
+            int j_d = (j == 1) ? 1 : j * tranche;
+            int i_f = (i == GRAIN-1) ? DIM-1 : (i+1) * tranche;
+            int j_f = (j == GRAIN-1) ? DIM-1 : (j+1) * tranche;
 
-    int value = 0;
-
-    for(int x = i_d; x < i_f; ++x) {
-        for(int y = j_d; y < j_f; ++y) {
-            value = pixel_handler(x, y);
-            if(cur_img(x, y) != value) {
-                tiles_tracker[i][j] = true;
-                tiles_tracker[i+1][j] = true;
-                tiles_tracker[i][j+1] = true;
+            for(int x = i_d; x < i_f; ++x) {
+                for(int y = j_d; y < j_f; ++y) {
+                    if(pixel_handler(x, y)) {
+                        tiles_tracker[i][j] = true;
+                        tiles_tracker[i+1][j] = true;
+                        tiles_tracker[i][j+1] = true;
+                    }
+                }
             }
-            next_img(x, y) = value;
         }
     }
 }
@@ -329,13 +335,7 @@ int launch_tile_handlers_optim_task (void)
     #pragma omp parallel
     for (int i=1; i < GRAIN; i++) {
         for (int j=1; j < GRAIN; j++) {
-            if(tiles_tracker[i][j] == true) {
-                #pragma omp single nowait
-                #pragma omp task
-                {
-                    tile_handler_optim_task (i, j);
-                }
-            }
+            tile_handler_optim_task (i, j);
         }
     }
 
