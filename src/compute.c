@@ -253,7 +253,7 @@ void init_v3() {
     tiles_tracker = malloc(sizeof(bool*)*(GRAIN+2));
     for(int i = 0; i < GRAIN+1; i++) {
         tiles_tracker[i] = malloc(sizeof(bool)*(GRAIN+2));
-        for(int j = 0; j < GRAIN; j++) {
+        for(int j = 0; j < GRAIN+1; j++) {
             tiles_tracker[i][j] = true;
         }
     }
@@ -321,6 +321,8 @@ void tile_handler_optim_task (int i, int j)
                         tiles_tracker[i][j] = true;
                         tiles_tracker[i+1][j] = true;
                         tiles_tracker[i][j+1] = true;
+                        tiles_tracker[i-1][j] = true;
+                        tiles_tracker[i][j-1] = true;
                     }
                 }
             }
