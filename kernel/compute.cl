@@ -1,3 +1,7 @@
+#define RED 0xFF0000FF
+#define GREEN 0x00FF00FF
+#define BLUE 0x0000FFFF
+
 __kernel void transpose_naif (__global unsigned *in, __global unsigned *out)
 {
   int x = get_global_id (0);
@@ -74,4 +78,25 @@ __kernel void update_texture (__global unsigned *cur, __write_only image2d_t tex
   c = cur [y * DIM + x];
 
   write_imagef (tex, pos, color_scatter (c));
+}
+
+__kernel void LIFEG_NAIF (__global unsigned *in, __global unsigned *out)
+{
+  int x = get_global_id (0);
+  int y = get_global_id (1);
+
+  int alive = 0;
+
+  for(int i = x-1 <= 0 ? 0 : x; i < x+1;++i){
+    for(int j = y-1 <= 0 ? 0 : y; j < y+1;++j){
+      alive += 1;
+    }
+  }
+
+  if(in[y*DIM+x] != 0){
+    out[y*DIM+x] = (alive == 2 || alive == 3) ? BLUE : 0;
+  }else{
+    out[y*DIM+x] = (alive == 3) ? GREEN : 0;
+  }
+
 }
