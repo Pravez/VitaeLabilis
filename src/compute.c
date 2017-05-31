@@ -79,6 +79,7 @@ unsigned opencl_used [] = {
     0,
     0,
     1,
+    1,
     1
 };
 
@@ -356,13 +357,13 @@ unsigned compute_v5(unsigned nb_iter)
 
 unsigned compute_v6(unsigned nb_iter)
 {
-    return 0; // on ne s'arrête jamais
+    return ocl_compute_naif (nb_iter);
 }
 unsigned compute_v7(unsigned nb_iter)
-{
-    return ocl_compute (nb_iter);
+{    
+    return ocl_compute_optimized (nb_iter);
 }
 unsigned compute_v8(unsigned nb_iter)
 {
-    return ocl_compute (nb_iter);
+    return ocl_compute_naif (nb_iter);
 }
