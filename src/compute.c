@@ -250,7 +250,7 @@ int launch_tile_handlers_optim (void)
 }
 
 void init_v3() {
-    tranche = (DIM*1.0) / GRAIN;
+    tranche = (DIM+GRAIN-1) / GRAIN;
     tiles_tracker = malloc(sizeof(bool*)*(GRAIN+2));
     for(int i = 0; i < GRAIN+1; i++) {
         tiles_tracker[i] = malloc(sizeof(bool)*(GRAIN+2));
@@ -325,6 +325,10 @@ void tile_handler_optim_task (int i, int j)
                         tiles_tracker[i][j+1] = true;
                         tiles_tracker[i-1][j] = true;
                         tiles_tracker[i][j-1] = true;
+                        tiles_tracker[i+1][j-1] = true;
+                        tiles_tracker[i+1][j+1] = true;
+                        tiles_tracker[i-1][j-1] = true;
+                        tiles_tracker[i-1][j+1] = true;
                     }
                 }
             }

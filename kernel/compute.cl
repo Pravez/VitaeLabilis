@@ -119,7 +119,6 @@ __kernel void LIFEG_NAIF (__global unsigned *in, __global unsigned *out)
 
     if(tiles[xloctile + TILES_QTY * yloctile] != 0) {
         //We calculate tile
-        //Are we in tiles ?
         if(x > 0 && y > 0 && x < DIM-1 && y < DIM-1){
             //By default we say it's not anymore modified
             next_tiles[xloctile+TILES_QTY*yloctile] = 0;
