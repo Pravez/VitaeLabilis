@@ -396,19 +396,25 @@ unsigned ocl_compute_optimized (unsigned nb_iter) {
     size_t global[2] = { SIZE, SIZE };  // global domain size for our calculation
     size_t local[2]  = { TILEX, TILEY };  // local domain size for our calculation
 
+    unsigned TILES_QTY = ((DIM + TILEX-1) / TILEX);
+    unsigned RESET_TILES[TILES_QTY * TILES_QTY];
+    memset(RESET_TILES, 0, TILES_QTY * TILES_QTY * sizeof(unsigned));
+
     for (unsigned it = 1; it <= nb_iter; it ++) {
 
         // Set kernel arguments
         //
         err = 0;        
+        err = clEnqueueWriteBuffer (queue, next_tile_buffer, CL_TRUE, 0, sizeof (unsigned) * TILES_QTY * TILES_QTY, RESET_TILES, 0, NULL, NULL);
+	    check (err, "Failed to write to next_tile_buffer");
+
         err  = clSetKernelArg (compute_kernel_optimized, 0, sizeof (cl_mem), &cur_buffer);
         err  = clSetKernelArg (compute_kernel_optimized, 1, sizeof (cl_mem), &next_buffer);
         err  = clSetKernelArg (compute_kernel_optimized, 2, sizeof(cl_mem), &tile_buffer);
         err  = clSetKernelArg (compute_kernel_optimized, 3, sizeof(cl_mem), &next_tile_buffer);
         check (err, "Failed to set kernel arguments");
 
-        err = clEnqueueNDRangeKernel (queue, compute_kernel_optimized, 2, NULL, global, local,
-                                      0, NULL, NULL);
+        err = clEnqueueNDRangeKernel (queue, compute_kernel_optimized, 2, NULL, global, local, 0, NULL, NULL);
         check(err, "Failed to execute kernel");
 
         // Swap buffers
@@ -416,11 +422,10 @@ unsigned ocl_compute_optimized (unsigned nb_iter) {
             cl_mem tmp = cur_buffer;
             cur_buffer = next_buffer;
             next_buffer = tmp;
+            tmp = tile_buffer; 
+            tile_buffer = next_tile_buffer; 
+            next_tile_buffer = tmp;
         }
-        	{ cl_mem tmp = tile_buffer; tile_buffer = next_tile_buffer; next_tile_buffer = tmp; }
-
-    //printf("it : %d %d\n", it, nb_iter);
-
     }
 
 

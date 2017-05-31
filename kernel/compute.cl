@@ -118,11 +118,16 @@ __kernel void LIFEG_NAIF (__global unsigned *in, __global unsigned *out)
     int yloctile = y/TILEY;
 
     if(tiles[xloctile + TILES_QTY * yloctile] != 0) {
-        next_tiles[xloctile+TILES_QTY*yloctile] = 0;
         //We calculate tile
-        if(y > 0 && y < DIM-1 && x > 0 && x < DIM-1){
+        //Are we in tiles ?
+        if(x > 0 && y > 0 && x < DIM-1 && y < DIM-1){
+            //By default we say it's not anymore modified
+            next_tiles[xloctile+TILES_QTY*yloctile] = 0;
+
             int alive = 0;
 
+            //strange but there the for wasnt working anymore, probably problem with indexes
+            //doing the brutal way ...
             alive += (in[y*DIM+(x+1)] != 0) ? 1 : 0;
             alive += (in[y*DIM+(x-1)] != 0) ? 1 : 0;
             alive += (in[(y+1)*DIM+x] != 0) ? 1 : 0;
@@ -141,24 +146,29 @@ __kernel void LIFEG_NAIF (__global unsigned *in, __global unsigned *out)
             if(in[y*DIM+x] != out[y*DIM+x]){
                 next_tiles[xloctile+TILES_QTY*yloctile] = 1;
 
-                if(xloctile < TILES_QTY-1){
-                    next_tiles[(xloctile+1)+TILES_QTY*yloctile] = 1;
-                    if(yloctile < TILES_QTY-1)
-                        next_tiles[(xloctile+1)+TILES_QTY*(yloctile+1)] = 1;
-                    if(yloctile > 0)
-                        next_tiles[(xloctile+1)+TILES_QTY*(yloctile-1)] = 1;
-                }
+                //To verify if we do x-1 tiles
                 if(xloctile > 0){
                     next_tiles[(xloctile-1)+TILES_QTY*yloctile] = 1;
-                    if(yloctile < TILES_QTY-1)
-                        next_tiles[(xloctile-1)+TILES_QTY*(yloctile+1)] = 1;
+                    //Same, verify in case of x-1 if we do y+1 and/or y-1
                     if(yloctile > 0)
                         next_tiles[(xloctile-1)+TILES_QTY*(yloctile-1)] = 1;
+                    if(yloctile < TILES_QTY-1)
+                        next_tiles[(xloctile-1)+TILES_QTY*(yloctile+1)] = 1;
                 }
-                if(yloctile < TILES_QTY -1)
-                    next_tiles[xloctile+TILES_QTY*(yloctile+1)] = 1;
+                //To verify if we do x+1 tiles
+                if(xloctile < TILES_QTY-1){
+                    next_tiles[(xloctile+1)+TILES_QTY*yloctile] = 1;
+                    //same
+                    if(yloctile > 0)
+                        next_tiles[(xloctile+1)+TILES_QTY*(yloctile-1)] = 1;
+                    if(yloctile < TILES_QTY-1)
+                        next_tiles[(xloctile+1)+TILES_QTY*(yloctile+1)] = 1;
+                }
+                //finally, y +/- 1
                 if(yloctile > 0)
                     next_tiles[xloctile+TILES_QTY*(yloctile-1)] = 1;
+                if(yloctile < TILES_QTY -1)
+                    next_tiles[xloctile+TILES_QTY*(yloctile+1)] = 1;
             }
         }
     }
