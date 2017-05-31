@@ -55,8 +55,8 @@ int_func_t compute [] = {
     compute_v3, //Version OpenMP optimisee
     compute_v4, //Version OpenMP task
     compute_v5, //Version OpenMP task optimisee
-    compute_v6,
-    compute_v7,
+    compute_v6, //Version OpenCL naive
+    compute_v7, //Version OpenCL Optimisee
     compute_v8,
 };
 
@@ -178,10 +178,10 @@ bool pixel_handler (int x, int y)
 
 void tile_handler (int i, int j)
 {
-    int i_d = (i == 1) ? 1 : i * tranche;
-    int j_d = (j == 1) ? 1 : j * tranche;
-    int i_f = (i == GRAIN-1) ? DIM-1 : (i+1) * tranche;
-    int j_f = (j == GRAIN-1) ? DIM-1 : (j+1) * tranche;
+    int i_d = (i == 1) ? 1 : i * GRAIN;
+    int j_d = (j == 1) ? 1 : j * GRAIN;
+    int i_f = (i == tranche-1) ? DIM-1 : (i+1) * GRAIN;
+    int j_f = (j == tranche-1) ? DIM-1 : (j+1) * GRAIN;
 
     for(int x = i_d; x < i_f; ++x) {
         for(int y = j_d; y < j_f; ++y) {
@@ -251,10 +251,10 @@ int launch_tile_handlers_optim (void)
 
 void init_v3() {
     tranche = (DIM+GRAIN-1) / GRAIN;
-    tiles_tracker = malloc(sizeof(bool*)*(GRAIN+2));
-    for(int i = 0; i < GRAIN+1; i++) {
-        tiles_tracker[i] = malloc(sizeof(bool)*(GRAIN+2));
-        for(int j = 0; j < GRAIN+1; j++) {
+    tiles_tracker = malloc(sizeof(bool*)*(tranche+2));
+    for(int i = 0; i < tranche+1; i++) {
+        tiles_tracker[i] = malloc(sizeof(bool)*(tranche+2));
+        for(int j = 0; j < tranche+1; j++) {
             tiles_tracker[i][j] = true;
         }
     }
@@ -279,11 +279,11 @@ unsigned compute_v3(unsigned nb_iter)
 
 int launch_tile_handlers_task (void)
 {
-    tranche = (DIM*1.0) / GRAIN;
+    tranche = (DIM+GRAIN-1) / GRAIN;
 
     #pragma omp parallel
-    for (int i=1; i < GRAIN; i++) {
-        for (int j=1; j < GRAIN; j++) {
+    for (int i=1; i < tranche; i++) {
+        for (int j=1; j < tranche; j++) {
             #pragma omp single nowait
             #pragma omp task
             {
@@ -312,10 +312,10 @@ void tile_handler_optim_task (int i, int j)
         {
             tiles_tracker[i][j] = false;
 
-            int i_d = (i == 1) ? 1 : i * tranche;
-            int j_d = (j == 1) ? 1 : j * tranche;
-            int i_f = (i == GRAIN-1) ? DIM-1 : (i+1) * tranche;
-            int j_f = (j == GRAIN-1) ? DIM-1 : (j+1) * tranche;
+            int i_d = (i == 1) ? 1 : i * GRAIN;
+            int j_d = (j == 1) ? 1 : j * GRAIN;
+            int i_f = (i == tranche-1) ? DIM-1 : (i+1) * GRAIN;
+            int j_f = (j == tranche-1) ? DIM-1 : (j+1) * GRAIN;
 
             for(int x = i_d; x < i_f; ++x) {
                 for(int y = j_d; y < j_f; ++y) {
@@ -325,10 +325,6 @@ void tile_handler_optim_task (int i, int j)
                         tiles_tracker[i][j+1] = true;
                         tiles_tracker[i-1][j] = true;
                         tiles_tracker[i][j-1] = true;
-                        tiles_tracker[i+1][j-1] = true;
-                        tiles_tracker[i+1][j+1] = true;
-                        tiles_tracker[i-1][j-1] = true;
-                        tiles_tracker[i-1][j+1] = true;
                     }
                 }
             }
@@ -341,8 +337,8 @@ int launch_tile_handlers_optim_task (void)
     tranche = DIM / GRAIN;
 
     #pragma omp parallel
-    for (int i=1; i < GRAIN; i++) {
-        for (int j=1; j < GRAIN; j++) {
+    for (int i=1; i < tranche; i++) {
+        for (int j=1; j < tranche; j++) {
             tile_handler_optim_task (i, j);
         }
     }
