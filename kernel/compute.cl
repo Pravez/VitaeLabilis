@@ -85,55 +85,81 @@ __kernel void LIFEG_NAIF (__global unsigned *in, __global unsigned *out)
     int x = get_global_id (0);
     int y = get_global_id (1);
 
-    int alive = 0;
-
-    for(int i = x-1 <= 0 ? 0 : x; i < x+1; ++i) {
-        for(int j = y-1 <= 0 ? 0 : y; j < y+1; ++j) {
-            alive += 1;
-        }
-    }
-
-    if(in[y*DIM+x] != 0) {
-        out[y*DIM+x] = (alive == 2 || alive == 3) ? BLUE : 0;
-    } else {
-        out[y*DIM+x] = (alive == 3) ? GREEN : 0;
-    }
-
-}
-
-__kernel void LIFEG_OPTIM (__global unsigned *in, __global unsigned *out, __global char* tiles, __global char* next_tiles)
-{
-    int x = get_global_id (0);
-    int y = get_global_id (1);
-
-    unsigned int TILES_QTY = (DIM*1.0)/TILEX;
-    int xloctile = x/TILEX;
-    int yloctile = y/TILEY;
-
-    if(tiles[xloctile + TILES_QTY * yloctile]) {
-        //We calculate tile
+    if(y > 0 && y < DIM-1 && x > 0 && x < DIM-1){
         int alive = 0;
 
-        for(int i = x-1 <= 0 ? 0 : x; i < x+1; ++i) {
-            for(int j = y-1 <= 0 ? 0 : y; j < y+1; ++j) {
-                alive += 1;
-            }
-        }
+        alive += (in[y*DIM+(x+1)] != 0) ? 1 : 0;
+        alive += (in[y*DIM+(x-1)] != 0) ? 1 : 0;
+        alive += (in[(y+1)*DIM+x] != 0) ? 1 : 0;
+        alive += (in[(y-1)*DIM+x] != 0) ? 1 : 0;
+        alive += (in[(y+1)*DIM+(x+1)] != 0) ? 1 : 0;
+        alive += (in[(y+1)*DIM+(x-1)] != 0) ? 1 : 0;
+        alive += (in[(y-1)*DIM+(x+1)] != 0) ? 1 : 0;
+        alive += (in[(y-1)*DIM+(x-1)] != 0) ? 1 : 0;
+
+        
 
         if(in[y*DIM+x] != 0) {
             out[y*DIM+x] = (alive == 2 || alive == 3) ? BLUE : 0;
         } else {
             out[y*DIM+x] = (alive == 3) ? GREEN : 0;
         }
+    }
 
-        if(in[y*DIM+x] != out[y*DIM+x]){
-          next_tiles[xloctile+TILES_QTY*yloctile] = 1;
-          next_tiles[(xloctile+1)+TILES_QTY*yloctile] = 1;
-          next_tiles[(xloctile-1)+TILES_QTY*yloctile] = 1;
-          next_tiles[xloctile+TILES_QTY*(yloctile+1)] = 1;
-          next_tiles[xloctile+TILES_QTY*(yloctile-1)] = 1;
-        }else{
-          next_tiles[xloctile+TILES_QTY*yloctile] = 0;
+}
+
+    __kernel void LIFEG_OPTIM (__global unsigned *in, __global unsigned *out, __global unsigned* tiles, __global unsigned* next_tiles)
+{
+    int x = get_global_id (0);
+    int y = get_global_id (1);
+
+    unsigned int TILES_QTY = (DIM+TILEX-1)/TILEX;
+    int xloctile = x/TILEX;
+    int yloctile = y/TILEY;
+
+    if(tiles[xloctile + TILES_QTY * yloctile] != 0) {
+        next_tiles[xloctile+TILES_QTY*yloctile] = 0;
+        //We calculate tile
+        if(y > 0 && y < DIM-1 && x > 0 && x < DIM-1){
+            int alive = 0;
+
+            alive += (in[y*DIM+(x+1)] != 0) ? 1 : 0;
+            alive += (in[y*DIM+(x-1)] != 0) ? 1 : 0;
+            alive += (in[(y+1)*DIM+x] != 0) ? 1 : 0;
+            alive += (in[(y-1)*DIM+x] != 0) ? 1 : 0;
+            alive += (in[(y+1)*DIM+(x+1)] != 0) ? 1 : 0;
+            alive += (in[(y+1)*DIM+(x-1)] != 0) ? 1 : 0;
+            alive += (in[(y-1)*DIM+(x+1)] != 0) ? 1 : 0;
+            alive += (in[(y-1)*DIM+(x-1)] != 0) ? 1 : 0;
+
+            if(in[y*DIM+x] != 0) {
+                out[y*DIM+x] = (alive == 2 || alive == 3) ? BLUE : 0;
+            } else {
+                out[y*DIM+x] = (alive == 3) ? GREEN : 0;
+            }
+
+            if(in[y*DIM+x] != out[y*DIM+x]){
+                next_tiles[xloctile+TILES_QTY*yloctile] = 1;
+
+                if(xloctile < TILES_QTY-1){
+                    next_tiles[(xloctile+1)+TILES_QTY*yloctile] = 1;
+                    if(yloctile < TILES_QTY-1)
+                        next_tiles[(xloctile+1)+TILES_QTY*(yloctile+1)] = 1;
+                    if(yloctile > 0)
+                        next_tiles[(xloctile+1)+TILES_QTY*(yloctile-1)] = 1;
+                }
+                if(xloctile > 0){
+                    next_tiles[(xloctile-1)+TILES_QTY*yloctile] = 1;
+                    if(yloctile < TILES_QTY-1)
+                        next_tiles[(xloctile-1)+TILES_QTY*(yloctile+1)] = 1;
+                    if(yloctile > 0)
+                        next_tiles[(xloctile-1)+TILES_QTY*(yloctile-1)] = 1;
+                }
+                if(yloctile < TILES_QTY -1)
+                    next_tiles[xloctile+TILES_QTY*(yloctile+1)] = 1;
+                if(yloctile > 0)
+                    next_tiles[xloctile+TILES_QTY*(yloctile-1)] = 1;
+            }
         }
     }
 }

@@ -37,12 +37,14 @@ unsigned SIZE = 0;
 
 static char *kernel_name = "LIFEG_NAIF";
 static char *kernel_optimized_name = "LIFEG_OPTIM";
+static char *kernel_transpose_name = "transpose";
 
 cl_int err;
 cl_context context;
 cl_kernel update_kernel;
 cl_kernel compute_kernel;
 cl_kernel compute_kernel_optimized;
+cl_kernel kernel_transpose;
 cl_command_queue queue;
 cl_mem tex_buffer, cur_buffer, next_buffer;
 cl_mem tile_buffer, next_tile_buffer;
@@ -255,6 +257,9 @@ void ocl_init (void)
 
     // Create the compute kernel in the program we wish to run
     //
+    kernel_transpose = clCreateKernel(program, kernel_transpose_name, &err);
+    check (err, "Failed to create transpose kernel");
+
     compute_kernel = clCreateKernel (program, kernel_name, &err);
     check (err, "Failed to create compute kernel");
 
@@ -287,13 +292,21 @@ void ocl_init (void)
 
 
     //Allocate buffers for tiles (optimized)
-    unsigned TILES_QTY = (DIM*1.0)/TILEX;
-    tile_buffer = clCreateBuffer (context, CL_MEM_READ_WRITE, sizeof(char) * TILES_QTY*TILES_QTY,
+    unsigned TILES_QTY = (DIM+TILEX-1)/TILEX;
+    tile_buffer = clCreateBuffer (context, CL_MEM_READ_WRITE, sizeof(unsigned) * TILES_QTY*TILES_QTY,
                                  NULL, NULL);
     if (!tile_buffer)
         exit_with_error ("Failed to allocate tile buffer");
 
-    next_tile_buffer = clCreateBuffer (context, CL_MEM_READ_WRITE, sizeof(char) * TILES_QTY*TILES_QTY,
+    unsigned buf[TILES_QTY * TILES_QTY];
+    memset(buf, 1, TILES_QTY * TILES_QTY * sizeof(unsigned));
+
+    err = clEnqueueWriteBuffer (queue, tile_buffer, CL_TRUE, 0,
+                            sizeof (unsigned) * TILES_QTY * TILES_QTY,
+                            buf, 0, NULL, NULL);
+    check (err, "Failed to write to cur_tile_buffer");
+
+    next_tile_buffer = clCreateBuffer (context, CL_MEM_READ_WRITE, sizeof(unsigned) * TILES_QTY*TILES_QTY,
                                  NULL, NULL);
     if (!next_tile_buffer)
         exit_with_error ("Failed to allocate next tile buffer");
@@ -320,6 +333,33 @@ void ocl_send_image (unsigned *image)
     check (err, "Failed to write to next_buffer");
 
     PRINT_DEBUG ('o', "Initial image sent to device.\n");
+}
+
+unsigned ocl_compute (unsigned nb_iter)
+{
+    //Pour la transpose ? on garde ?
+  size_t global[2] = { SIZE, SIZE };  // global domain size for our calculation
+  size_t local[2]  = { TILEX, TILEY };  // local domain size for our calculation
+
+  for (unsigned it = 1; it <= nb_iter; it ++) {
+
+    // Set kernel arguments
+    //
+    err = 0;
+    err  = clSetKernelArg (kernel_transpose, 0, sizeof (cl_mem), &cur_buffer);
+    err  = clSetKernelArg (kernel_transpose, 1, sizeof (cl_mem), &next_buffer);
+    check (err, "Failed to set kernel arguments");
+
+    err = clEnqueueNDRangeKernel (queue, kernel_transpose, 2, NULL, global, local,
+				  0, NULL, NULL);
+    check(err, "Failed to execute kernel");
+
+    // Swap buffers
+    { cl_mem tmp = cur_buffer; cur_buffer = next_buffer; next_buffer = tmp; }
+
+  }
+
+  return 0;
 }
 
 unsigned ocl_compute_naif (unsigned nb_iter)
@@ -356,20 +396,11 @@ unsigned ocl_compute_optimized (unsigned nb_iter) {
     size_t global[2] = { SIZE, SIZE };  // global domain size for our calculation
     size_t local[2]  = { TILEX, TILEY };  // local domain size for our calculation
 
-    //TILEX = GRAIN
-    unsigned TILES_QTY = (DIM*1.0)/TILEX;
-    char TILES[TILES_QTY*TILES_QTY];
-    memset(TILES, 0, sizeof(char)*TILES_QTY*TILES_QTY);
-
     for (unsigned it = 1; it <= nb_iter; it ++) {
 
         // Set kernel arguments
         //
-        err = 0;
-
-        err = clEnqueueWriteBuffer(queue, next_tile_buffer, CL_TRUE, 0, sizeof(char)*TILES_QTY*TILES_QTY, TILES, 0, NULL, NULL);
-        check (err, "Failed to write tiles buffer");
-
+        err = 0;        
         err  = clSetKernelArg (compute_kernel_optimized, 0, sizeof (cl_mem), &cur_buffer);
         err  = clSetKernelArg (compute_kernel_optimized, 1, sizeof (cl_mem), &next_buffer);
         err  = clSetKernelArg (compute_kernel_optimized, 2, sizeof(cl_mem), &tile_buffer);
@@ -385,12 +416,13 @@ unsigned ocl_compute_optimized (unsigned nb_iter) {
             cl_mem tmp = cur_buffer;
             cur_buffer = next_buffer;
             next_buffer = tmp;
-            tmp = tile_buffer;
-            tile_buffer = next_tile_buffer;
-            next_tile_buffer = tmp;
         }
+        	{ cl_mem tmp = tile_buffer; tile_buffer = next_tile_buffer; next_tile_buffer = tmp; }
+
+    //printf("it : %d %d\n", it, nb_iter);
 
     }
+
 
     return 0;
 }
