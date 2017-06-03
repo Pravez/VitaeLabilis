@@ -195,8 +195,8 @@ int launch_tile_handlers (void)
     tranche = DIM / GRAIN;
 
     #pragma omp parallel for collapse(2) schedule(static)
-    for (int i=1; i < GRAIN; i++)
-        for (int j=1; j < GRAIN; j++)
+    for (int i=1; i < tranche; i++)
+        for (int j=1; j < tranche; j++)
             tile_handler (i, j);
 
     return 0;
@@ -218,10 +218,10 @@ void tile_handler_optim (int i, int j)
     if(tiles_tracker[i][j] == true) {
         tiles_tracker[i][j] = false;
 
-        int i_d = (i == 1) ? 1 : i * tranche;
-        int j_d = (j == 1) ? 1 : j * tranche;
-        int i_f = (i == GRAIN-1) ? DIM-1 : (i+1) * tranche;
-        int j_f = (j == GRAIN-1) ? DIM-1 : (j+1) * tranche;
+        int i_d = (i == 1) ? 1 : i * GRAIN;
+        int j_d = (j == 1) ? 1 : j * GRAIN;
+        int i_f = (i == tranche-1) ? DIM-1 : (i+1) * GRAIN;
+        int j_f = (j == tranche-1) ? DIM-1 : (j+1) * GRAIN;
 
         for(int x = i_d; x < i_f; ++x) {
             for(int y = j_d; y < j_f; ++y) {
@@ -242,8 +242,8 @@ int launch_tile_handlers_optim (void)
     tranche = DIM / GRAIN;
 
     #pragma omp parallel for collapse(2) schedule(static)
-    for (int i=1; i < GRAIN; i++)
-        for (int j=1; j < GRAIN; j++)
+    for (int i=1; i < tranche; i++)
+        for (int j=1; j < tranche; j++)
             tile_handler_optim (i, j);
 
     return 0;
@@ -334,7 +334,7 @@ void tile_handler_optim_task (int i, int j)
 
 int launch_tile_handlers_optim_task (void)
 {
-    tranche = DIM / GRAIN;
+    tranche = (DIM+GRAIN-1) / GRAIN;
 
     #pragma omp parallel
     for (int i=1; i < tranche; i++) {
